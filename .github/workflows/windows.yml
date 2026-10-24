@@ -1,0 +1,54 @@
+name: Programme Windows
+
+on:
+  push:
+    paths: ["desktop/**", "android/app/src/main/assets/**", ".github/workflows/windows.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Installer les dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Copier les modèles du mot d'éveil
+        shell: bash
+        run: |
+          mkdir -p models
+          cp ../android/app/src/main/assets/*.onnx models/
+
+      - name: Vérifier que le programme se charge
+        run: python -c "import jarvis_desktop, wakeword; d = wakeword.WakeWordDetector('models/melspectrogram.onnx','models/embedding_model.onnx','models/wakeword.onnx'); print('ok')"
+
+      - name: Fabriquer Jarvis.exe
+        run: pyinstaller --noconfirm --onefile --windowed --name Jarvis --add-data "models;models" --collect-binaries onnxruntime jarvis_desktop.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-Windows
+          path: desktop/dist/Jarvis.exe
+
+      - name: Publier dans les Releases (windows-latest)
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view windows-latest >/dev/null 2>&1 || \
+            gh release create windows-latest --title "Jarvis Windows (dernière version)" --notes "Programme Windows compilé automatiquement. Télécharge Jarvis.exe et lance-le."
+          gh release upload windows-latest dist/Jarvis.exe --clobber
