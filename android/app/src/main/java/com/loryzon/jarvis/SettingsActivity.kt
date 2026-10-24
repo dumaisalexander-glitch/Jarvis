@@ -75,6 +75,13 @@ class SettingsActivity : Activity() {
         })
         col.addView(sens)
 
+        val google = Switch(this).apply {
+            text = "Transcription par Google (gratuite). Désactivé = Whisper en ligne (clé OpenAI)"
+            setTextColor(Color.WHITE); textSize = 16f
+            isChecked = config.stt == Config.STT_GOOGLE; setPadding(0, dp(18), 0, 0)
+        }
+        col.addView(google)
+
         val convo = Switch(this).apply {
             text = "Mode conversation (Jarvis réécoute après avoir répondu)"; setTextColor(Color.WHITE); textSize = 16f
             isChecked = config.conversation; setPadding(0, dp(18), 0, 0)
@@ -92,6 +99,7 @@ class SettingsActivity : Activity() {
             config.wakeWord = wake.isChecked
             config.threshold = 0.95f - sens.progress / 100f
             config.conversation = convo.isChecked
+            config.stt = if (google.isChecked) Config.STT_GOOGLE else Config.STT_WHISPER
             config.sessionTimeoutMin = timeout.text.toString().toIntOrNull() ?: 5
         }
 
@@ -101,8 +109,9 @@ class SettingsActivity : Activity() {
             Executors.newSingleThreadExecutor().execute {
                 val msg = try {
                     val h = org.json.JSONObject(ApiClient(config).health())
-                    val manque = listOf("whisper" to "clé Whisper", "claude" to "clé Claude", "base_de_donnees" to "base de données", "teams" to "Teams")
-                        .filter { !h.optBoolean(it.first) }.map { it.second }
+                    val requis = listOf("claude" to "clé Claude", "base_de_donnees" to "base de données", "teams" to "Teams") +
+                        if (config.stt == Config.STT_WHISPER) listOf("whisper" to "clé Whisper") else emptyList()
+                    val manque = requis.filter { !h.optBoolean(it.first) }.map { it.second }
                     if (manque.isEmpty()) "✔ Tout est prêt (modèle ${h.optString("modele")})."
                     else "Connecté, mais il manque sur Vercel : ${manque.joinToString(", ")}."
                 } catch (e: Exception) {

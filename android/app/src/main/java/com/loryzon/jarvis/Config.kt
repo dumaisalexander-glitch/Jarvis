@@ -34,5 +34,15 @@ class Config(context: Context) {
         get() = prefs.getInt("sessionTimeoutMin", 5)
         set(v) = prefs.edit().putInt("sessionTimeoutMin", v.coerceIn(1, 120)).apply()
 
+    /** Transcription : reconnaissance Google du téléphone (gratuite) ou Whisper en ligne (clé OpenAI). */
+    var stt: String
+        get() = prefs.getString("stt", STT_GOOGLE) ?: STT_GOOGLE
+        set(v) = prefs.edit().putString("stt", v).apply()
+
     val isConfigured: Boolean get() = serverUrl.startsWith("https://") && token.isNotEmpty()
+
+    companion object {
+        const val STT_GOOGLE = "google"
+        const val STT_WHISPER = "whisper"
+    }
 }

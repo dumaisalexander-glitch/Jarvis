@@ -23,6 +23,10 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
@@ -52,6 +56,9 @@ class JarvisService : Service() {
     private var focusRequest: AudioFocusRequest? = null
 
     @Volatile private var running = false
+    @Volatile private var micPaused = false   // micro libéré pour la reconnaissance Google
+    private var recognizer: SpeechRecognizer? = null
+    private var googleMode = false
     @Volatile private var phase = Phase.OFF
     private var audioThread: Thread? = null
 
@@ -107,7 +114,7 @@ class JarvisService : Service() {
         when (intent?.action) {
             ACTION_TALK -> main.post {
                 when (phase) {
-                    Phase.LISTENING -> finishListening()
+                    Phase.LISTENING -> if (googleMode) recognizer?.stopListening() else finishListening()
                     Phase.SPEAKING -> { tts?.stop(); startListening() }
                     Phase.THINKING -> Unit
                     else -> startListening()
@@ -129,6 +136,7 @@ class JarvisService : Service() {
             network.execute { runCatching { api.endSession(id) } }
         }
         network.shutdown()
+        stopRecognizer()
         tts?.shutdown()
         tone?.release()
         synchronized(detectorLock) { detector?.close(); detector = null }
@@ -165,27 +173,48 @@ class JarvisService : Service() {
         running = true
         goIdle()
         audioThread = Thread({
-            val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
-            val record = AudioRecord(
-                MediaRecorder.AudioSource.VOICE_RECOGNITION, SAMPLE_RATE,
-                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, max(minBuf, FRAME * 8),
-            )
-            if (record.state != AudioRecord.STATE_INITIALIZED) {
-                JarvisBus.update { it.copy(message = "Impossible d'ouvrir le micro.") }
-                return@Thread
-            }
             val buf = ShortArray(FRAME)
-            record.startRecording()
+            var record: AudioRecord? = null
             try {
                 while (running) {
+                    if (micPaused) {
+                        record?.let { it.stop(); it.release() }
+                        record = null
+                        Thread.sleep(30)
+                        continue
+                    }
+                    if (record == null) {
+                        record = openRecord()
+                        if (record == null) {
+                            JarvisBus.update { it.copy(message = "Impossible d'ouvrir le micro.") }
+                            Thread.sleep(1000)
+                            continue
+                        }
+                        record.startRecording()
+                    }
                     val n = record.read(buf, 0, FRAME)
                     if (n > 0) onAudio(buf, n)
                 }
+            } catch (e: InterruptedException) {
+                // arrêt du service
             } finally {
-                record.stop()
-                record.release()
+                record?.let { it.stop(); it.release() }
             }
         }, "jarvis-audio").apply { priority = Thread.MAX_PRIORITY; start() }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun openRecord(): AudioRecord? {
+        val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        val r = AudioRecord(
+            MediaRecorder.AudioSource.VOICE_RECOGNITION, SAMPLE_RATE,
+            AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, max(minBuf, FRAME * 8),
+        )
+        if (r.state != AudioRecord.STATE_INITIALIZED) {
+            r.release()
+            return null
+        }
+        return r
     }
 
     /** Appelé sur le fil audio toutes les 40 ms. */
@@ -204,6 +233,7 @@ class JarvisService : Service() {
                 }
             }
             Phase.LISTENING -> {
+                if (googleMode) return
                 JarvisBus.update { it.copy(level = (level / 4000.0).coerceIn(0.0, 1.0).toFloat()) }
                 listenedSamples += n
                 if (listenedSamples < SAMPLE_RATE * 3 / 10) return // ignore le bip de départ
@@ -236,6 +266,8 @@ class JarvisService : Service() {
     // ------------------------------------------------------------- états
 
     private fun goIdle() {
+        stopRecognizer()
+        micPaused = false
         abandonFocus()
         synchronized(detectorLock) { detector?.reset() }
         setPhase(if (detector != null) Phase.IDLE else Phase.IDLE_NO_WAKE)
@@ -248,6 +280,12 @@ class JarvisService : Service() {
         }
         main.removeCallbacks(sessionTimeout)
         requestFocus()
+        if (config.stt == Config.STT_GOOGLE && SpeechRecognizer.isRecognitionAvailable(this)) {
+            startGoogle()
+            return
+        }
+        googleMode = false
+        micPaused = false
         recLen = 0
         speechHeard = false
         silentSamples = 0
@@ -271,6 +309,108 @@ class JarvisService : Service() {
         network.execute {
             try {
                 val r = api.converse(audio, audio.size, id)
+                main.post { onReply(r) }
+            } catch (e: Exception) {
+                Log.e(TAG, "converse", e)
+                main.post {
+                    JarvisBus.update { it.copy(message = e.message ?: "Erreur réseau") }
+                    speakThen("Désolé, je n'arrive pas à joindre le serveur.", listenAfter = false)
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------- reconnaissance Google
+
+    private fun startGoogle() {
+        googleMode = true
+        micPaused = true // libère le micro pour Google
+        setPhase(Phase.LISTENING)
+        tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
+        main.postDelayed({
+            if (phase != Phase.LISTENING || !googleMode) return@postDelayed
+            stopRecognizer()
+            val rec = SpeechRecognizer.createSpeechRecognizer(this)
+            recognizer = rec
+            rec.setRecognitionListener(googleListener)
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fr-CA")
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+            }
+            try {
+                rec.startListening(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "google", e)
+                JarvisBus.update { it.copy(message = "Reconnaissance Google indisponible : ${e.message}") }
+                goIdle()
+            }
+        }, 250) // le temps que notre micro soit libéré et que le bip finisse
+    }
+
+    private fun stopRecognizer() {
+        recognizer?.let {
+            try { it.cancel(); it.destroy() } catch (e: Exception) { }
+        }
+        recognizer = null
+    }
+
+    private val googleListener = object : RecognitionListener {
+        override fun onReadyForSpeech(params: Bundle?) {}
+        override fun onBeginningOfSpeech() {}
+        override fun onRmsChanged(rmsdB: Float) {
+            JarvisBus.update { it.copy(level = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)) }
+        }
+        override fun onBufferReceived(buffer: ByteArray?) {}
+        override fun onEndOfSpeech() {}
+        override fun onPartialResults(partialResults: Bundle?) {
+            val t = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+            if (!t.isNullOrBlank()) JarvisBus.update { it.copy(transcript = t) }
+        }
+        override fun onEvent(eventType: Int, params: Bundle?) {}
+        override fun onResults(results: Bundle?) {
+            val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim().orEmpty()
+            main.post {
+                if (phase != Phase.LISTENING) return@post
+                stopRecognizer()
+                googleMode = false
+                if (text.length < 2) {
+                    tone?.startTone(ToneGenerator.TONE_PROP_NACK, 120)
+                    goIdle()
+                    scheduleTimeout()
+                } else {
+                    tone?.startTone(ToneGenerator.TONE_PROP_ACK, 100)
+                    sendText(text)
+                }
+            }
+        }
+        override fun onError(error: Int) {
+            main.post {
+                if (phase != Phase.LISTENING) return@post
+                googleMode = false
+                val quiet = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                if (!quiet) {
+                    JarvisBus.update { it.copy(message = "Reconnaissance vocale : erreur $error" +
+                        if (error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT) " (pas de réseau)" else "") }
+                }
+                tone?.startTone(ToneGenerator.TONE_PROP_NACK, 120)
+                goIdle()
+                scheduleTimeout()
+            }
+        }
+    }
+
+    private fun sendText(text: String) {
+        micPaused = false
+        JarvisBus.update { it.copy(transcript = text, level = 0f) }
+        setPhase(Phase.THINKING)
+        val id = sessionId
+        network.execute {
+            try {
+                val r = api.converseText(text, id)
                 main.post { onReply(r) }
             } catch (e: Exception) {
                 Log.e(TAG, "converse", e)

@@ -20,7 +20,10 @@ class ApiClient(private val config: Config) {
 
     fun converse(pcm: ShortArray, length: Int, sessionId: String): Reply {
         val body = wav(pcm, length)
-        val json = post("/api/converse", body, "audio/wav", sessionId)
+        return parse(post("/api/converse", body, "audio/wav", sessionId))
+    }
+
+    private fun parse(json: JSONObject): Reply {
         val list = json.optJSONArray("changements") ?: JSONArray()
         return Reply(
             transcription = json.optString("transcription"),
@@ -28,6 +31,11 @@ class ApiClient(private val config: Config) {
             changements = List(list.length()) { list.getString(it) },
             finSession = json.optBoolean("finSession", false),
         )
+    }
+
+    fun converseText(text: String, sessionId: String): Reply {
+        val payload = JSONObject().put("texte", text).toString().toByteArray()
+        return parse(post("/api/converse", payload, "application/json", sessionId))
     }
 
     fun endSession(sessionId: String): String {
