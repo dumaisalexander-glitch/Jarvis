@@ -35,8 +35,18 @@ jobs:
       - name: Vérifier que le programme se charge
         run: python -c "import jarvis_desktop, wakeword; d = wakeword.WakeWordDetector('models/melspectrogram.onnx','models/embedding_model.onnx','models/wakeword.onnx'); print('ok')"
 
+      - name: Tester la transcription locale (Whisper sur l'ordinateur)
+        run: python tests/test_transcription.py
+
       - name: Fabriquer Jarvis.exe
-        run: pyinstaller --noconfirm --onefile --windowed --name Jarvis --add-data "models;models" --collect-binaries onnxruntime jarvis_desktop.py
+        run: pyinstaller --noconfirm --onefile --windowed --name Jarvis --add-data "models;models" --collect-binaries onnxruntime --collect-all faster_whisper --collect-binaries ctranslate2 jarvis_desktop.py
+
+      - name: Vérifier Jarvis.exe
+        shell: pwsh
+        run: |
+          Start-Process -FilePath dist\Jarvis.exe -ArgumentList "--selftest", "$env:RUNNER_TEMP\selftest.txt" -Wait
+          Get-Content "$env:RUNNER_TEMP\selftest.txt"
+          if (-not (Select-String -Path "$env:RUNNER_TEMP\selftest.txt" -Pattern "^OK$" -Quiet)) { exit 1 }
 
       - uses: actions/upload-artifact@v4
         with:

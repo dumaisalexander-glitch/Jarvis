@@ -22,6 +22,7 @@ from tkinter import messagebox
 import numpy as np
 import sounddevice as sd
 
+from local_stt import MODELS, LocalTranscriber
 from wakeword import WakeWordDetector
 
 SAMPLE_RATE = 16000
@@ -39,6 +40,8 @@ DEFAULTS = {
     "threshold": 0.85,
     "conversation": True,
     "session_timeout_min": 5,
+    "stt": "local",          # "local" = Whisper sur l'ordinateur, "whisper" = Whisper en ligne (clé OpenAI)
+    "local_model": "small",
 }
 
 COLORS = {
@@ -201,6 +204,8 @@ class Jarvis:
         self.cooldown_until = 0.0
         self._reset_recording()
         self.load_detector()
+        self.stt: LocalTranscriber | None = None
+        self.prepare_stt()
         threading.Thread(target=self._audio_worker, daemon=True).start()
         threading.Thread(target=self._session_watch, daemon=True).start()
 
@@ -210,6 +215,27 @@ class Jarvis:
 
     def configured(self) -> bool:
         return self.cfg["server_url"].startswith("https://") and bool(self.cfg["token"])
+
+    def prepare_stt(self):
+        """Prépare Whisper local en arrière-plan (téléchargement au premier lancement)."""
+        if self.cfg.get("stt") != "local":
+            self.stt = None
+            return
+        if self.stt and self.stt.model_size == self.cfg.get("local_model"):
+            return
+        stt = LocalTranscriber(self.cfg.get("local_model", "small"), os.path.join(APP_DIR, "whisper"))
+        self.stt = stt
+
+        def work():
+            self.ui.message("Préparation de la transcription locale… (premier lancement : téléchargement du modèle, quelques minutes)")
+            try:
+                stt.load()
+                self.ui.message("Transcription locale prête.")
+            except Exception as e:
+                stt.error = str(e)
+                self.ui.message(f"Transcription locale impossible : {e}. Choisis « Whisper en ligne » dans les Réglages.")
+
+        threading.Thread(target=work, daemon=True).start()
 
     def load_detector(self):
         with self.lock:
@@ -351,11 +377,23 @@ class Jarvis:
     def _send(self, audio, text):
         session = self.session
         try:
+            if audio is not None and self.stt is not None:
+                if not self.stt.ready:
+                    self.ui.message("La transcription locale se prépare encore, un instant…")
+                text = self.stt.transcribe(audio)
+                if len(text) < 2:
+                    self.ui.later(lambda: (beep(330, 0.12), self.go_idle()))
+                    return
+                self.ui.later(lambda: self.ui.show_reply(text, "", []))
+                audio = None
+                spoken = True
+            else:
+                spoken = audio is not None
             r = self.api.converse_audio(audio, session) if audio is not None else self.api.converse_text(text, session)
-            self.ui.later(lambda: self._on_reply(r, spoken=audio is not None))
+            self.ui.later(lambda: self._on_reply(r, spoken=spoken))
         except Exception as e:
             msg = str(e)
-            self.ui.later(lambda: (self.ui.message(msg), self._speak("Désolé, je n'arrive pas à joindre le serveur.", False)))
+            self.ui.later(lambda: (self.ui.message(msg), self._speak("Désolé, j'ai eu un problème. Réessaie dans un instant.", False)))
 
     def _on_reply(self, r: dict, spoken: bool):
         self.turns += 1
@@ -616,6 +654,21 @@ class Settings(tk.Toplevel):
         label("Minutes de silence avant d'envoyer le résumé dans Teams")
         self.timeout = entry(str(cfg["session_timeout_min"]))
 
+        label("Transcription de ta voix")
+        self.stt_mode = tk.StringVar(value=cfg.get("stt", "local"))
+        for value, text in (("local", "Whisper sur cet ordinateur (gratuit, hors ligne)"),
+                            ("whisper", "Whisper en ligne (clé OpenAI sur le serveur)")):
+            tk.Radiobutton(self, text=text, value=value, variable=self.stt_mode, fg=c["ink"], bg=c["bg"],
+                           selectcolor=c["panel"], activebackground=c["bg"], activeforeground=c["ink"],
+                           anchor="w").pack(fill="x")
+        label("Taille du modèle local")
+        self.model = tk.StringVar(value=cfg.get("local_model", "small"))
+        menu = tk.OptionMenu(self, self.model, *MODELS.keys())
+        menu.config(bg=c["panel"], fg=c["ink"], activebackground=c["panel"], highlightthickness=0, relief="flat")
+        menu.pack(fill="x")
+        tk.Label(self, text="  ·  ".join(f"{k} : {v}" for k, v in MODELS.items()), fg=c["muted"], bg=c["bg"],
+                 font=("Segoe UI", 8), wraplength=380, justify="left").pack(fill="x")
+
         self.result = tk.Label(self, text="", fg=c["thinking"], bg=c["bg"], wraplength=380, justify="left")
         row = tk.Frame(self, bg=c["bg"])
         row.pack(fill="x", pady=(16, 4))
@@ -631,6 +684,8 @@ class Settings(tk.Toplevel):
         cfg["wake_word"] = bool(self.wake.get())
         cfg["conversation"] = bool(self.convo.get())
         cfg["threshold"] = float(self.threshold.get())
+        cfg["stt"] = self.stt_mode.get()
+        cfg["local_model"] = self.model.get()
         try:
             cfg["session_timeout_min"] = max(1, min(120, int(self.timeout.get())))
         except ValueError:
@@ -643,8 +698,10 @@ class Settings(tk.Toplevel):
         def work():
             try:
                 h = self.app.jarvis.api.health()
-                manque = [n for k, n in (("whisper", "clé Whisper"), ("claude", "clé Claude"),
-                                         ("base_de_donnees", "base de données"), ("teams", "Teams")) if not h.get(k)]
+                requis = [("claude", "clé Claude"), ("base_de_donnees", "base de données"), ("teams", "Teams")]
+                if self.app.jarvis.cfg.get("stt") == "whisper":
+                    requis.append(("whisper", "clé Whisper"))
+                manque = [n for k, n in requis if not h.get(k)]
                 msg = f"✔ Tout est prêt (modèle {h.get('modele')})." if not manque else \
                     "Connecté, mais il manque sur Vercel : " + ", ".join(manque) + "."
             except Exception as e:
@@ -660,6 +717,7 @@ class Settings(tk.Toplevel):
             return
         save_config(self.app.jarvis.cfg)
         self.app.jarvis.load_detector()
+        self.app.jarvis.prepare_stt()
         if self.app.jarvis.stream is None:
             self.app.jarvis.start_mic()
         else:
@@ -667,5 +725,25 @@ class Settings(tk.Toplevel):
         self.destroy()
 
 
+def selftest(out_path: str) -> None:
+    """Vérification du .exe compilé (utilisée par GitHub Actions)."""
+    lines = []
+    try:
+        import ctranslate2
+        import faster_whisper
+        lines.append(f"faster-whisper {faster_whisper.__version__}, ctranslate2 {ctranslate2.__version__}")
+        WakeWordDetector(resource("models", "melspectrogram.onnx"), resource("models", "embedding_model.onnx"),
+                         resource("models", "wakeword.onnx")).process(np.zeros(16000, dtype=np.int16))
+        lines.append("mot d'éveil ok")
+        lines.append("OK")
+    except Exception as e:  # noqa: BLE001
+        lines.append(f"ERREUR {type(e).__name__}: {e}")
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
 if __name__ == "__main__":
-    App().mainloop()
+    if len(sys.argv) > 2 and sys.argv[1] == "--selftest":
+        selftest(sys.argv[2])
+    else:
+        App().mainloop()
