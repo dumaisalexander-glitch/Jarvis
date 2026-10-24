@@ -1,0 +1,28 @@
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+*.jks
+*.keystore
+
+# Windows / Python
+desktop/build/
+desktop/dist/
+desktop/*.spec
+__pycache__/
+*.pyc
+.venv/
+
+# Serveur
+server/node_modules/
+server/.vercel/
+.env
+.env.*
+
+# Entraînement du mot d'éveil (gros fichiers générés)
+wakeword-training/clips/
+wakeword-training/features/
+!android/app/jarvis-debug.keystore

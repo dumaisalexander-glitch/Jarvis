@@ -1,0 +1,11 @@
+{
+  "name": "jarvis-server",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Cerveau de Jarvis : projets partagés, Whisper, Claude, Teams",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node test/run.js"
+  }
+}

@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="fr-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis · Mes projets</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='28' fill='%2300b4d8'/><circle cx='32' cy='32' r='12' fill='%23001018'/></svg>">
+<style>
+  :root {
+    --bg: #f4f6f8; --panel: #ffffff; --ink: #14202b; --muted: #5b6b78; --line: #dde3e8;
+    --accent: #0086a8; --accent-ink: #ffffff; --soft: #e6f4f8;
+    --ecole: #6b4fd8; --loryzon: #d9732b; --perso: #2f9e5b; --danger: #c43d3d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b1218; --panel: #121c24; --ink: #e5edf2; --muted: #8fa1ae; --line: #22313c;
+      --accent: #2cc4e6; --accent-ink: #001218; --soft: #10303a;
+      --ecole: #a593ff; --loryzon: #f2a061; --perso: #6fd49a; --danger: #ff7b7b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .bar { max-width: 1100px; margin: 0 auto; padding: 12px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .02em; margin-right: auto; }
+  .orb { width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle at 50% 50%, var(--bg) 0 30%, var(--accent) 32% 100%); box-shadow: 0 0 12px var(--accent); }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tab { border: 1px solid var(--line); background: transparent; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+  .tab[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .ask { display: flex; gap: 8px; margin-bottom: 16px; }
+  .ask input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); }
+  .btn { border: 0; border-radius: 12px; padding: 10px 14px; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .btn.rec { background: var(--danger); color: #fff; }
+  .reply { background: var(--soft); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; display: none; }
+  .reply small { color: var(--muted); display: block; margin-bottom: 4px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; border-top: 4px solid var(--c, var(--accent)); }
+  .card[data-cat="ecole"] { --c: var(--ecole); } .card[data-cat="loryzon"] { --c: var(--loryzon); } .card[data-cat="perso"] { --c: var(--perso); }
+  .card h3 { margin: 0; font-size: 17px; }
+  .meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .pill { border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+  .pill.cat { color: var(--c); border-color: var(--c); }
+  .next { background: var(--soft); border-radius: 10px; padding: 8px 10px; font-size: 14px; }
+  .next b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  ul.tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  ul.tasks li { display: flex; gap: 8px; align-items: flex-start; }
+  ul.tasks li.done span { text-decoration: line-through; color: var(--muted); }
+  ul.tasks input { margin-top: 3px; accent-color: var(--accent); width: 18px; height: 18px; }
+  ul.tasks .x { margin-left: auto; border: 0; background: none; color: var(--muted); cursor: pointer; visibility: hidden; }
+  ul.tasks li:hover .x { visibility: visible; }
+  .add { display: flex; gap: 6px; }
+  .add input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; background: transparent; }
+  details { font-size: 14px; } details summary { cursor: pointer; color: var(--muted); }
+  details p { margin: 6px 0; padding-left: 10px; border-left: 2px solid var(--line); }
+  .foot { display: flex; gap: 6px; justify-content: flex-end; }
+  .foot select { border: 1px solid var(--line); border-radius: 8px; background: transparent; padding: 3px 6px; font-size: 13px; }
+  .empty { color: var(--muted); text-align: center; padding: 48px 16px; }
+  .journal article { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; white-space: pre-wrap; }
+  .journal small { color: var(--muted); }
+  .login { max-width: 380px; margin: 12vh auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+  .login input { padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: transparent; }
+  .err { color: var(--danger); font-size: 14px; }
+  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } .logo span { display: none; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(() => {
+  const CATS = { ecole: "École", loryzon: "LoRyzon", perso: "Perso" };
+  const STATUTS = { actif: "Actif", en_pause: "En pause", termine: "Terminé" };
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+    del(k) { try { localStorage.removeItem(k); } catch {} },
+  };
+  let token = store.get("jarvis_token") || "";
+  let state = { projets: [], journal: [] };
+  let filtre = store.get("jarvis_filtre") || "tous";
+  let vue = "projets";
+  const sessionId = "web_" + Math.random().toString(36).slice(2, 10);
+  const app = document.getElementById("app");
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  async function api(path, opts = {}) {
+    const res = await fetch(path, { ...opts, headers: { authorization: "Bearer " + token, "x-session": sessionId, "x-device": "web", ...(opts.headers || {}) } });
+    const body = await res.json().catch(() => ({}));
+    if (res.status === 401) { store.del("jarvis_token"); token = ""; renderLogin("Mot de passe invalide."); throw new Error("401"); }
+    if (!res.ok) throw new Error(body.erreur || res.status);
+    return body;
+  }
+
+  function renderLogin(msg = "") {
+    app.innerHTML = `<form class="login"><div class="logo"><div class="orb"></div>Jarvis</div>
+      <label>Mot de passe Jarvis<br><input type="password" autocomplete="current-password" required></label>
+      <button class="btn">Entrer</button><div class="err">${esc(msg)}</div></form>`;
+    app.querySelector("form").onsubmit = (e) => { e.preventDefault(); token = app.querySelector("input").value.trim(); store.set("jarvis_token", token); load(); };
+  }
+
+  async function load() {
+    try { state = await api("/api/projects"); render(); } catch (e) { if (e.message !== "401") renderLogin("Erreur : " + e.message); }
+  }
+
+  function render() {
+    const tabs = [["tous", "Tous"], ...Object.entries(CATS), ["journal", "Journal"]];
+    app.innerHTML = `<header><div class="bar"><div class="logo"><div class="orb"></div><span>Jarvis · Mes projets</span></div>
+      <nav class="tabs">${tabs.map(([k, l]) => `<button class="tab" data-tab="${k}" aria-pressed="${(vue === "journal" ? "journal" : filtre) === k}">${l}</button>`).join("")}</nav>
+      <button class="btn ghost" id="nouveau">+ Projet</button></div></header>
+      <main><form class="ask"><input id="q" placeholder="Écris à Jarvis… (ex. « ajoute réviser chimie à mon projet d'école »)">
+      <button type="button" class="btn ghost" id="mic" title="Parler">🎙️</button><button class="btn">Envoyer</button></form>
+      <div class="reply" id="reply"></div><div id="contenu"></div></main>`;
+    app.querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => {
+      if (b.dataset.tab === "journal") vue = "journal"; else { vue = "projets"; filtre = b.dataset.tab; store.set("jarvis_filtre", filtre); }
+      render();
+    });
+    app.querySelector("#nouveau").onclick = nouveauProjet;
+    app.querySelector(".ask").onsubmit = (e) => { e.preventDefault(); const q = app.querySelector("#q"); if (q.value.trim()) ask({ texte: q.value.trim() }), q.value = ""; };
+    app.querySelector("#mic").onclick = toggleMic;
+    vue === "journal" ? renderJournal() : renderProjets();
+  }
+
+  function renderProjets() {
+    const box = app.querySelector("#contenu");
+    const ordre = { actif: 0, en_pause: 1, termine: 2 };
+    const list = state.projets.filter((p) => filtre === "tous" || p.categorie === filtre)
+      .sort((a, b) => ordre[a.statut] - ordre[b.statut] || (b.maj || "").localeCompare(a.maj || ""));
+    if (!list.length) { box.innerHTML = `<div class="empty">Aucun projet ici pour l'instant.<br>Parle à Jarvis dans l'auto, ou écris-lui ci-dessus.</div>`; return; }
+    box.innerHTML = `<div class="grid">${list.map(card).join("")}</div>`;
+    box.querySelectorAll("[data-check]").forEach((el) => el.onchange = () => act({ type: "completer_tache", projet: el.dataset.p, tache: el.dataset.check, fait: el.checked }));
+    box.querySelectorAll("[data-del]").forEach((el) => el.onclick = () => act({ type: "supprimer_tache", projet: el.dataset.p, tache: el.dataset.del }));
+    box.querySelectorAll("form.add").forEach((f) => f.onsubmit = (e) => { e.preventDefault(); const i = f.querySelector("input"); if (i.value.trim()) act({ type: "ajouter_tache", projet: f.dataset.p, texte: i.value.trim() }); });
+    box.querySelectorAll("[data-statut]").forEach((s) => s.onchange = () => act({ type: "modifier_projet", projet: s.dataset.statut, statut: s.value }));
+    box.querySelectorAll("[data-cat-sel]").forEach((s) => s.onchange = () => act({ type: "modifier_projet", projet: s.dataset.catSel, categorie: s.value }));
+    box.querySelectorAll("[data-suppr]").forEach((b) => b.onclick = () => { const p = state.projets.find((x) => x.id === b.dataset.suppr); if (confirm(`Supprimer le projet « ${p.nom} »?`)) act({ type: "supprimer_projet", projet: p.id }); });
+  }
+
+  function card(p) {
+    const todo = p.taches.filter((t) => !t.fait), faites = p.taches.filter((t) => t.fait);
+    const task = (t) => `<li class="${t.fait ? "done" : ""}"><input type="checkbox" ${t.fait ? "checked" : ""} data-check="${t.id}" data-p="${p.id}" aria-label="Terminée">
+      <span>${esc(t.texte)}${t.echeance ? ` <small class="pill">${esc(t.echeance)}</small>` : ""}</span><button class="x" data-del="${t.id}" data-p="${p.id}" title="Retirer">✕</button></li>`;
+    return `<article class="card" data-cat="${p.categorie}">
+      <div><h3>${esc(p.nom)}</h3><div class="meta"><span class="pill cat">${CATS[p.categorie] || p.categorie}</span><span class="pill">${STATUTS[p.statut] || p.statut}</span>${p.echeance ? `<span class="pill">📅 ${esc(p.echeance)}</span>` : ""}</div></div>
+      ${p.resume ? `<div>${esc(p.resume)}</div>` : ""}
+      ${p.prochaine_etape ? `<div class="next"><b>Prochaine étape</b>${esc(p.prochaine_etape)}</div>` : ""}
+      <ul class="tasks">${todo.map(task).join("")}${faites.map(task).join("")}</ul>
+      <form class="add" data-p="${p.id}"><input placeholder="Ajouter une tâche…"><button class="btn ghost">+</button></form>
+      ${p.notes.length ? `<details><summary>Notes (${p.notes.length})</summary>${p.notes.slice().reverse().map((n) => `<p>${esc(n.texte)}<br><small>${new Date(n.date).toLocaleString("fr-CA")}</small></p>`).join("")}</details>` : ""}
+      <div class="foot"><select data-cat-sel="${p.id}" aria-label="Catégorie">${Object.entries(CATS).map(([k, l]) => `<option value="${k}" ${k === p.categorie ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <select data-statut="${p.id}" aria-label="Statut">${Object.entries(STATUTS).map(([k, l]) => `<option value="${k}" ${k === p.statut ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <button class="btn ghost" data-suppr="${p.id}" title="Supprimer le projet">🗑</button></div></article>`;
+  }
+
+  function renderJournal() {
+    const box = app.querySelector("#contenu");
+    const j = state.journal || [];
+    box.innerHTML = j.length ? `<div class="journal">${j.map((s) => `<article><small>${new Date(s.date).toLocaleString("fr-CA")} · ${esc(s.source)}</small>\n${esc(s.resume)}</article>`).join("")}</div>`
+      : `<div class="empty">Les résumés de tes sessions avec Jarvis apparaîtront ici.</div>`;
+  }
+
+  async function act(action) {
+    try { const r = await api("/api/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ actions: [action] }) }); state = r.etat; render(); }
+    catch (e) { if (e.message !== "401") alert("Erreur : " + e.message); }
+  }
+
+  function nouveauProjet() {
+    const nom = prompt("Nom du projet ?"); if (!nom) return;
+    const cat = prompt("Catégorie : ecole, loryzon ou perso ?", filtre in CATS ? filtre : "perso");
+    act({ type: "creer_projet", projet: nom.trim(), categorie: (cat || "perso").trim().toLowerCase() });
+  }
+
+  function showReply(html) { const r = app.querySelector("#reply"); r.style.display = "block"; r.innerHTML = html; }
+
+  async function ask({ texte, audio }) {
+    showReply("<small>Jarvis réfléchit…</small>");
+    try {
+      const opts = audio ? { method: "POST", headers: { "content-type": audio.type || "audio/webm" }, body: audio }
+        : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ texte }) };
+      const r = await api("/api/converse", opts);
+      showReply(`<small>Toi : ${esc(r.transcription)}</small>${esc(r.reponse)}${r.changements?.length ? `<small style="margin-top:6px">✔ ${r.changements.map(esc).join("<br>✔ ")}</small>` : ""}`);
+      if (audio && "speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(r.reponse); u.lang = "fr-CA"; speechSynthesis.speak(u); }
+      if (r.changements?.length) { state = await api("/api/projects"); const keep = app.querySelector("#reply").innerHTML; render(); showReply(keep); }
+    } catch (e) { if (e.message !== "401") showReply("Erreur : " + esc(e.message)); }
+  }
+
+  let rec = null;
+  async function toggleMic() {
+    const btn = app.querySelector("#mic");
+    if (rec) { rec.stop(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks = []; rec = new MediaRecorder(stream);
+      rec.ondataavailable = (e) => chunks.push(e.data);
+      rec.onstop = () => { stream.getTracks().forEach((t) => t.stop()); rec = null; btn.classList.remove("rec"); btn.textContent = "🎙️"; ask({ audio: new Blob(chunks, { type: chunks[0]?.type || "audio/webm" }) }); };
+      rec.start(); btn.classList.add("rec"); btn.textContent = "■";
+    } catch (e) { alert("Micro non disponible : " + e.message); }
+  }
+
+  token ? load() : renderLogin();
+})();
+</script>
+</body>
+</html>
