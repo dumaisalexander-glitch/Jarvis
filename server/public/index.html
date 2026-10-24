@@ -175,20 +175,33 @@
 
   async function ask({ texte, audio }) {
     showReply("<small>Jarvis réfléchit…</small>");
+    const parle = speak; speak = false;
     try {
       const opts = audio ? { method: "POST", headers: { "content-type": audio.type || "audio/webm" }, body: audio }
         : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ texte }) };
       const r = await api("/api/converse", opts);
       showReply(`<small>Toi : ${esc(r.transcription)}</small>${esc(r.reponse)}${r.changements?.length ? `<small style="margin-top:6px">✔ ${r.changements.map(esc).join("<br>✔ ")}</small>` : ""}`);
-      if (audio && "speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(r.reponse); u.lang = "fr-CA"; speechSynthesis.speak(u); }
+      if ((audio || parle) && "speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(r.reponse); u.lang = "fr-CA"; speechSynthesis.speak(u); }
       if (r.changements?.length) { state = await api("/api/projects"); const keep = app.querySelector("#reply").innerHTML; render(); showReply(keep); }
     } catch (e) { if (e.message !== "401") showReply("Erreur : " + esc(e.message)); }
   }
 
   let rec = null;
+  let speak = false;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   async function toggleMic() {
     const btn = app.querySelector("#mic");
     if (rec) { rec.stop(); return; }
+    if (SR) {
+      // Reconnaissance vocale du navigateur (Chrome, Edge) : pas besoin de Whisper.
+      const r = new SR(); r.lang = "fr-CA"; r.interimResults = true; r.maxAlternatives = 1;
+      let finalText = "";
+      r.onresult = (e) => { finalText = Array.from(e.results).map((x) => x[0].transcript).join(" "); showReply(`<small>Toi : ${esc(finalText)}</small>`); };
+      r.onerror = (e) => { if (e.error !== "no-speech" && e.error !== "aborted") showReply("Micro : " + esc(e.error)); };
+      r.onend = () => { rec = null; btn.classList.remove("rec"); btn.textContent = "🎙️"; if (finalText.trim()) { speak = true; ask({ texte: finalText.trim() }); } };
+      rec = r; r.start(); btn.classList.add("rec"); btn.textContent = "■";
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const chunks = []; rec = new MediaRecorder(stream);

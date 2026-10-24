@@ -1,15 +1,20 @@
 # Jarvis
 
 Ton assistant vocal pour faire avancer tes projets (École, LoRyzon, Perso) dans l'auto, à la maison ou à l'école.
-Tu dis **« Jarvis »**, tu parles, Whisper transcrit, Claude organise tes projets avec toi et te répond à voix haute.
+Tu dis **« Jarvis »**, tu parles, ta voix est transcrite directement sur ton appareil, Claude organise tes projets avec toi et te répond à voix haute.
 Le résumé de chaque session arrive dans **Teams**, et tout est rangé dans ton **tableau de projets**.
 
 ```
- Téléphone Android ─┐                       ┌─ Whisper (transcription)
-                    ├──►  Serveur Jarvis  ──┼─ Claude (réflexion, organisation)
- Ordinateur Windows ┘     (Vercel)          ├─ Base de données (tes projets)
- Tableau web (n'importe où) ───┘            └─ Teams (résumés de session)
+ Téléphone Android  (reconnaissance Google) ─┐                      ┌─ Claude (réflexion, organisation)
+                                             ├─► Serveur Jarvis ──┼─ Base de données (tes projets)
+ Ordinateur Windows (Whisper sur le PC)    ──┘     (Vercel)         └─ Teams (résumés de session)
+ Tableau web (n'importe où) ──────────────────────┘
 ```
+
+**Transcription de ta voix** (sans clé OpenAI) :
+- **Téléphone** : la reconnaissance vocale de Google intégrée à Android, en français canadien. Gratuite, et souvent même hors ligne sur les téléphones récents.
+- **Ordinateur** : Whisper tourne directement sur ton PC. Gratuit, hors ligne, rien ne sort de ton ordinateur. Le modèle (environ 500 Mo) se télécharge une seule fois au premier lancement.
+- **Option** : Whisper en ligne (OpenAI) reste disponible dans les Réglages des deux apps, si tu préfères. Il faut alors la clé OpenAI.
 
 | Dossier | Contenu |
 |---|---|
@@ -22,12 +27,12 @@ Le résumé de chaque session arrive dans **Teams**, et tout est rangé dans ton
 
 ## Mise en route (environ 30 minutes, une seule fois)
 
-### 1. Obtenir les deux clés d'API
+### 1. Obtenir la clé Claude
 
-- **Whisper (OpenAI)** : sur <https://platform.openai.com/api-keys>, crée une clé (commence par `sk-`). Ajoute quelques dollars de crédit dans *Billing*.
-- **Claude (Anthropic)** : sur <https://console.anthropic.com/settings/keys>, crée une clé (commence par `sk-ant-`). Ajoute aussi un peu de crédit.
+- **Claude (Anthropic)** : sur <https://console.anthropic.com/settings/keys>, crée une clé (commence par `sk-ant-`). Ajoute un peu de crédit.
+- *(Optionnel)* **Whisper en ligne (OpenAI)** : seulement si tu veux cette option. Crée une clé sur <https://platform.openai.com/api-keys> (commence par `sk-`).
 
-> Coût : c'est à l'usage. Une session normale de quelques minutes coûte quelques sous. Tu peux mettre une limite de dépense mensuelle dans chaque console.
+> Coût : c'est à l'usage. Une session normale de quelques minutes coûte quelques sous. Tu peux mettre une limite de dépense mensuelle dans la console.
 
 ### 2. Créer le lien Teams (pour recevoir les résumés)
 
@@ -48,7 +53,7 @@ Le résumé de chaque session arrive dans **Teams**, et tout est rangé dans ton
 | Nom | Valeur |
 |---|---|
 | `JARVIS_TOKEN` | Un mot de passe long que tu inventes (il sert pour l'app, le programme et le tableau) |
-| `OPENAI_API_KEY` | Ta clé OpenAI (`sk-...`) |
+| `OPENAI_API_KEY` *(optionnel)* | Ta clé OpenAI (`sk-...`), seulement pour l'option Whisper en ligne |
 | `ANTHROPIC_API_KEY` | Ta clé Claude (`sk-ant-...`) |
 | `TEAMS_WEBHOOK_URL` | L'adresse copiée à l'étape 2 |
 | `CLAUDE_MODEL` *(optionnel)* | `claude-sonnet-5-5` par défaut. `claude-haiku-5-5` = plus rapide et moins cher |
@@ -62,8 +67,9 @@ Le résumé de chaque session arrive dans **Teams**, et tout est rangé dans ton
 
 1. Sur ton téléphone, va dans ton dépôt GitHub → **Releases** → **Jarvis Android (dernière version)** → télécharge **`Jarvis.apk`**.
 2. Ouvre le fichier. Android va demander d'autoriser l'installation depuis ton navigateur : accepte.
-3. Ouvre Jarvis → **Réglages** : colle l'adresse Vercel et ton `JARVIS_TOKEN` → **Tester la connexion** → **Enregistrer**.
-4. Accepte la permission du **micro** (et des notifications).
+3. Vérifie que la **reconnaissance vocale de Google** est installée : c'est l'app *Google* ou *Speech Recognition & Synthesis*, présente sur presque tous les Android. Pour qu'elle marche aussi sans réseau, va dans *Paramètres → Google → Reconnaissance vocale → Reconnaissance hors connexion* et télécharge **Français (Canada)**. Le nom exact des menus varie selon le téléphone.
+4. Ouvre Jarvis → **Réglages** : colle l'adresse Vercel et ton `JARVIS_TOKEN` → **Tester la connexion** → **Enregistrer**.
+5. Accepte la permission du **micro** (et des notifications).
 
 Les mises à jour s'installent par-dessus l'ancienne version (même clé de signature).
 
@@ -72,7 +78,8 @@ Les mises à jour s'installent par-dessus l'ancienne version (même clé de sign
 1. Dans **Releases** → **Jarvis Windows (dernière version)**, télécharge **`Jarvis.exe`**.
 2. Lance-le. Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » (le programme n'est pas signé par un éditeur payant) : **Informations complémentaires → Exécuter quand même**.
 3. **Réglages** : même adresse et même mot de passe.
-4. Pour une voix québécoise : *Paramètres Windows → Heure et langue → Voix* → ajoute **Français (Canada)**. Jarvis la choisit automatiquement.
+4. Au premier lancement, Jarvis télécharge son modèle de transcription (environ 500 Mo, quelques minutes). Le message « Transcription locale prête » s'affiche quand c'est fait. Si ton ordi est lent, choisis le modèle **base** dans les Réglages.
+5. Pour une voix québécoise : *Paramètres Windows → Heure et langue → Voix* → ajoute **Français (Canada)**. Jarvis la choisit automatiquement.
 
 ---
 
