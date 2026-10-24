@@ -61,11 +61,11 @@ class SettingsActivity : Activity() {
 
         val sensLabel = label("")
         col.addView(sensLabel)
-        val sens = SeekBar(this).apply { max = 80 }
-        // barre : 0 = peu sensible (seuil 0,9) ... 80 = très sensible (seuil 0,1)
-        sens.progress = ((0.9f - config.threshold) * 100).toInt().coerceIn(0, 80)
+        val sens = SeekBar(this).apply { max = 85 }
+        // barre : 0 = peu sensible (seuil 0,95) ... 85 = très sensible (seuil 0,1)
+        sens.progress = ((0.95f - config.threshold) * 100).toInt().coerceIn(0, 85)
         fun updateSens() {
-            sensLabel.text = "Sensibilité du mot d'éveil : seuil %.2f (plus bas = réagit plus facilement)".format(0.9f - sens.progress / 100f)
+            sensLabel.text = "Sensibilité du mot d'éveil : seuil %.2f (plus bas = réagit plus facilement)".format(0.95f - sens.progress / 100f)
         }
         updateSens()
         sens.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -90,7 +90,7 @@ class SettingsActivity : Activity() {
             config.serverUrl = url.text.toString()
             config.token = token.text.toString()
             config.wakeWord = wake.isChecked
-            config.threshold = 0.9f - sens.progress / 100f
+            config.threshold = 0.95f - sens.progress / 100f
             config.conversation = convo.isChecked
             config.sessionTimeoutMin = timeout.text.toString().toIntOrNull() ?: 5
         }

@@ -21,7 +21,7 @@ class Config(context: Context) {
 
     /** Sensibilité du mot d'éveil (score minimum, 0.1 à 0.9). Plus bas = réagit plus facilement. */
     var threshold: Float
-        get() = prefs.getFloat("threshold", 0.5f)
+        get() = prefs.getFloat("threshold", 0.85f)
         set(v) = prefs.edit().putFloat("threshold", v.coerceIn(0.1f, 0.95f)).apply()
 
     /** Après la réponse, Jarvis réécoute tout de suite (conversation sans redire « Jarvis »). */

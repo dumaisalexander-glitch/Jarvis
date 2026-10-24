@@ -205,7 +205,7 @@ def export_onnx(model: MLP, path: str):
 def is_holdout(f):
     """Clips réalistes (Kokoro) dont le numéro finit par 0 : gardés pour l'évaluation finale."""
     b = os.path.basename(f)
-    return not b.startswith("es_") and b[-5] == "0"
+    return not b.startswith("es") and b[-5] == "0"
 
 
 if __name__ == "__main__":
@@ -214,12 +214,20 @@ if __name__ == "__main__":
     rng.shuffle(pos); rng.shuffle(neg)
     vp, vn = max(1, len(pos) // 10), max(1, len(neg) // 10)
     print(f"{len(pos)} positifs, {len(neg)} négatifs", flush=True)
-    real = lambda fs: [f for f in fs if not os.path.basename(f).startswith("es_")]
-    robot = lambda fs: [f for f in fs if os.path.basename(f).startswith("es_")]
+    base = os.path.basename
+    real = lambda fs: [f for f in fs if not base(f).startswith(("es", "cneg"))]
+    robot = lambda fs: [f for f in fs if base(f).startswith("es_")]
+    traps_real = lambda fs: [f for f in fs if base(f).startswith("cneg")]   # mots-pièges, voix réalistes
+    traps_robot = lambda fs: [f for f in fs if base(f).startswith("esc_")]  # mots-pièges, eSpeak
     tr_p, tr_n = pos[vp:], neg[vn:]
-    X1, y1 = build(real(tr_p), real(tr_n), reps_pos=8, reps_neg=4)
-    X2, y2 = build(robot(tr_p), robot(tr_n), reps_pos=3, reps_neg=1)
-    Xtr, ytr = np.concatenate([X1, X2]), np.concatenate([y1, y2])
+    parts = [
+        build(real(tr_p), real(tr_n), reps_pos=8, reps_neg=4),
+        build(robot(tr_p), robot(tr_n), reps_pos=3, reps_neg=1),
+        build([], traps_real(tr_n), reps_pos=0, reps_neg=10),
+        build([], traps_robot(tr_n), reps_pos=0, reps_neg=2),
+    ]
+    parts = [p for p in parts if len(p[0])]
+    Xtr, ytr = np.concatenate([p[0] for p in parts]), np.concatenate([p[1] for p in parts])
     Xva, yva = build(pos[:vp], neg[:vn], reps_pos=2, reps_neg=1)
     print(f"entraînement : {int(ytr.sum())} pos / {int((1 - ytr).sum())} nég ; validation : {int(yva.sum())} pos / {int((1 - yva).sum())} nég", flush=True)
 

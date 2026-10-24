@@ -35,7 +35,9 @@ POS_LANGS = ["en-us"] * 4 + ["en-gb"] * 2 + ["fr-fr"] * 4 + ["es", "it", "pt-br"
 
 POS_TEXT = ["Jarvis", "Jarvis.", "Jarvis!", "Jarvis?", "Jarvis,", "Jarvis...", "Jarvis !"]
 
-with open(os.path.join(HERE, "negative_phrases.txt"), encoding="utf-8") as f:
+NEG_FILE = os.environ.get("NEG_FILE", os.path.join(HERE, "negative_phrases.txt"))
+PREFIX = os.environ.get("PREFIX", "")
+with open(NEG_FILE, encoding="utf-8") as f:
     NEG = [l.strip() for l in f if l.strip() and not l.startswith("#")]
 
 
@@ -66,7 +68,7 @@ rng.shuffle(jobs)
 for kind, i in jobs:
     if i % NSHARDS != SHARD:
         continue
-    path = os.path.join(OUT, kind, f"{kind}_{i:05d}.wav")
+    path = os.path.join(OUT, kind, f"{PREFIX}{kind}_{i:05d}.wav")
     if os.path.exists(path):
         continue
     try:
@@ -75,7 +77,7 @@ for kind, i in jobs:
             # « Jarvis » seul : la fin de la parole = la fin du mot (sert à étiqueter)
             text = rng.choice(POS_TEXT)
         else:
-            lang = rng.choice(["fr-fr"] * 3 + ["en-us", "en-gb"])
+            lang = rng.choice(os.environ.get("NEG_LANGS", "fr-fr,fr-fr,fr-fr,en-us,en-gb").split(","))
             text = rng.choice(NEG)
         synth(text, lang, path)
         with open(path + ".txt", "w", encoding="utf-8") as f:

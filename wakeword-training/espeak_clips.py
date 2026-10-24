@@ -42,7 +42,7 @@ lib.espeak_SetSynthCallback(on_audio)
 LANGS = ["en-us", "en", "fr-fr", "fr-be", "es", "it", "pt-br", "de"]
 VARIANTS = [""] + [f"+m{i}" for i in range(1, 8)] + [f"+f{i}" for i in range(1, 5)]
 POS = ["Jarvis", "Jarvis.", "Jarvis!", "Jarvis?", "Jarvis,"]
-with open(os.path.join(HERE, "negative_phrases.txt"), encoding="utf-8") as f:
+with open(os.environ.get("NEG_FILE", os.path.join(HERE, "negative_phrases.txt")), encoding="utf-8") as f:
     NEG = [l.strip() for l in f if l.strip() and not l.startswith("#")]
 
 
@@ -75,5 +75,5 @@ for kind, n in (("pos", NPOS), ("neg", NNEG)):
         else:
             lang = rng.choice(["fr-fr"] * 3 + ["en-us", "en"])
             text = rng.choice(NEG)
-        synth(text, lang, os.path.join(OUT, kind, f"es_{kind}_{i:05d}.wav"))
+        synth(text, lang, os.path.join(OUT, kind, f"es{os.environ.get('PREFIX', '')}_{kind}_{i:05d}.wav"))
 print("terminé")

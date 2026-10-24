@@ -98,8 +98,10 @@ Les mises à jour s'installent par-dessus l'ancienne version (même clé de sign
 Le mot d'éveil fonctionne **sur l'appareil** : rien n'est envoyé sur Internet tant que tu n'as pas dit « Jarvis ».
 Le modèle (`wakeword.onnx`) a été entraîné spécialement pour « Jarvis » seul, avec des milliers d'exemples de voix synthétiques (accents anglais, français, etc.).
 
-- S'il **ne réagit pas assez** : baisse le seuil dans les Réglages (ex. 0,35).
-- S'il **se déclenche tout seul** : monte le seuil (ex. 0,65).
+Résultats sur des voix et des phrases jamais vues pendant l'entraînement (seuil par défaut 0,85) : **97 %** des « Jarvis » reconnus, au calme comme avec du bruit de route. Il peut encore se faire piéger par des sons très proches (« Javier », « Charvis », « ça vise »).
+
+- S'il **ne réagit pas assez** : baisse le seuil dans les Réglages (ex. 0,7).
+- S'il **se déclenche tout seul** : monte le seuil (ex. 0,92).
 
 Pour le réentraîner plus tard avec plus d'exemples, voir `wakeword-training/`.
 

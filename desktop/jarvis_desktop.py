@@ -36,7 +36,7 @@ DEFAULTS = {
     "server_url": "",
     "token": "",
     "wake_word": True,
-    "threshold": 0.5,
+    "threshold": 0.85,
     "conversation": True,
     "session_timeout_min": 5,
 }
@@ -608,7 +608,7 @@ class Settings(tk.Toplevel):
                            activebackground=c["bg"], activeforeground=c["ink"], anchor="w").pack(fill="x", pady=(10, 0))
 
         label("Seuil du mot d'éveil (plus bas = réagit plus facilement)")
-        self.threshold = tk.Scale(self, from_=0.1, to=0.9, resolution=0.05, orient="horizontal", bg=c["bg"], fg=c["ink"],
+        self.threshold = tk.Scale(self, from_=0.1, to=0.95, resolution=0.05, orient="horizontal", bg=c["bg"], fg=c["ink"],
                                   highlightthickness=0, troughcolor=c["panel"])
         self.threshold.set(cfg["threshold"])
         self.threshold.pack(fill="x")

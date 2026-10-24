@@ -29,6 +29,7 @@ class WakeWordDetector(context: Context) : AutoCloseable {
     private val mels = ArrayDeque<FloatArray>()      // trames de 32
     private val features = ArrayDeque<FloatArray>()  // embeddings de 96
     private var chunksSeen = 0
+    private var prevScore = 0f
 
     init { reset() }
 
@@ -51,9 +52,13 @@ class WakeWordDetector(context: Context) : AutoCloseable {
             i += 8
         }
         chunksSeen = 0
+        prevScore = 0f
     }
 
-    /** Ajoute de l'audio 16 kHz mono. Retourne le meilleur score vu. */
+    /**
+     * Ajoute de l'audio 16 kHz mono. Retourne le meilleur score « confirmé » : le plus petit des scores
+     * de deux blocs de 80 ms consécutifs (évite les déclenchements sur un seul pic).
+     */
     fun process(pcm: ShortArray, length: Int = pcm.size): Float {
         var best = 0f
         var offset = 0
@@ -63,7 +68,9 @@ class WakeWordDetector(context: Context) : AutoCloseable {
             pendingCount += n
             offset += n
             if (pendingCount == CHUNK) {
-                best = maxOf(best, processChunk(pending))
+                val score = processChunk(pending)
+                best = maxOf(best, minOf(score, prevScore))
+                prevScore = score
                 pendingCount = 0
             }
         }

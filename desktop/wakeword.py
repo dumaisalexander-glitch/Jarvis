@@ -17,7 +17,7 @@ N_FEATURES = 16
 
 
 class WakeWordDetector:
-    def __init__(self, mel_path: str, embed_path: str, word_path: str, threshold: float = 0.5):
+    def __init__(self, mel_path: str, embed_path: str, word_path: str, threshold: float = 0.85):
         opts = ort.SessionOptions()
         opts.inter_op_num_threads = 1
         opts.intra_op_num_threads = 1
@@ -38,6 +38,7 @@ class WakeWordDetector:
         noise = np.random.randint(-1000, 1000, 16000 * 4).astype(np.int16)
         self.features = self._embeddings_of(noise)
         self.chunks_seen = 0
+        self.prev_score = 0.0
 
     def _melspec(self, audio: np.ndarray) -> np.ndarray:
         x = audio.astype(np.float32)[None, :]
@@ -55,12 +56,15 @@ class WakeWordDetector:
 
     # -- flux -----------------------------------------------------------
     def process(self, pcm: np.ndarray) -> float:
-        """Ajoute de l'audio int16 mono 16 kHz. Retourne le meilleur score vu dans ce paquet."""
+        """Ajoute de l'audio int16 mono 16 kHz. Retourne le meilleur score « confirmé » du paquet :
+        le plus petit des scores de deux blocs de 80 ms consécutifs (évite les déclenchements sur un seul pic)."""
         self.raw = np.concatenate((self.raw, pcm.astype(np.int16)))
         best = 0.0
         while self.raw.shape[0] >= CHUNK:
             chunk, self.raw = self.raw[:CHUNK], self.raw[CHUNK:]
-            best = max(best, self._process_chunk(chunk))
+            score = self._process_chunk(chunk)
+            best = max(best, min(score, self.prev_score))
+            self.prev_score = score
         return best
 
     def _process_chunk(self, chunk: np.ndarray) -> float:
